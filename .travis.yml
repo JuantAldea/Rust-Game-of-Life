@@ -1,0 +1,12 @@
+language: rust
+rust:
+  - stable
+  #- beta
+before_script:
+  - rustup component add clippy
+  - rustup component add rustfmt
+script:
+  - cargo fmt --all -- --check
+  # in order to also check tests and non-default crate features, use
+  - cargo clippy --all-targets --all-features -- -D warnings
+  - cargo test

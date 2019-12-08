@@ -1,0 +1,15 @@
+[package]
+name = "game_of_life_rust"
+version = "0.1.0"
+authors = ["Juan Antonio <JuantAldea@users.noreply.github.com>"]
+edition = "2018"
+
+[profile.release]
+debug = true
+
+[dependencies]
+piston_window = "*"
+rand = "*"
+image = "*"
+rayon = "*"
+termion = "*"
