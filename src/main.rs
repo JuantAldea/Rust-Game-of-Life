@@ -12,8 +12,8 @@ pub mod world;
 
 const UPS: u32 = 120;
 const CELL_PIXEL_SIDE: u32 = 5;
-const X_SIZE: u32 = CELL_PIXEL_SIDE * 100;
-const Y_SIZE: u32 = CELL_PIXEL_SIDE * 100;
+const X_SIZE: u32 = CELL_PIXEL_SIDE * 1920;
+const Y_SIZE: u32 = CELL_PIXEL_SIDE * 1080;
 
 fn main() {
     let stdout = io::stdout();
@@ -39,7 +39,7 @@ fn main() {
         bench_mode: false,
     });
 
-    let canvas = im::ImageBuffer::new(X_SIZE as u32, Y_SIZE as u32);
+    let mut canvas = im::ImageBuffer::new(X_SIZE as u32, Y_SIZE as u32);
     let mut ctx = window.create_texture_context();
 
     let mut texture = Texture::from_image(&mut ctx, &canvas, &TextureSettings::new()).unwrap();
@@ -71,28 +71,25 @@ fn main() {
         if e.render_args().is_some() {
             let now = Instant::now();
 
+            world.cells.iter().enumerate().for_each(|cell| {
+                let x = cell.0 % world.width;
+                let y = cell.0 / world.width;
+                let color = if cell.1.alive { [255; 4] } else { [128; 4] };
+
+                for j in 0..CELL_PIXEL_SIDE {
+                    let sy = y as u32 * CELL_PIXEL_SIDE + j;
+                    for i in 0..CELL_PIXEL_SIDE {
+                        let sx = x as u32 * CELL_PIXEL_SIDE + i;
+                        canvas.put_pixel(sx, sy, im::Rgba(color));
+                    }
+                }
+            });
+
             texture.update(&mut ctx, &canvas).unwrap();
             window.draw_2d(&e, |c, g, d| {
                 ctx.encoder.flush(d);
                 clear([0., 0., 0., 1.], g);
-                world.cells.iter().enumerate().for_each(|cell| {
-                    let x = cell.0 % world.width;
-                    let y = cell.0 / world.width;
-                    let sy = y as u32 * CELL_PIXEL_SIDE;
-                    let sx = x as u32 * CELL_PIXEL_SIDE;
-                    let color = if cell.1.alive { [1.0; 4] } else { [0.5; 4] };
-                    rectangle(
-                        color,
-                        [
-                            sx as f64,
-                            sy as f64,
-                            CELL_PIXEL_SIDE as f64,
-                            CELL_PIXEL_SIDE as f64,
-                        ],
-                        c.transform,
-                        g,
-                    );
-                });
+                image(&texture, c.transform, g);
             });
 
             write!(stdout, "{}", clear::All).unwrap();
