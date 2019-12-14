@@ -39,7 +39,7 @@ fn main() {
         bench_mode: false,
     });
 
-    let mut canvas = im::ImageBuffer::new(X_SIZE as u32, Y_SIZE as u32);
+    let canvas = im::ImageBuffer::new(X_SIZE as u32, Y_SIZE as u32);
     let mut ctx = window.create_texture_context();
 
     let mut texture = Texture::from_image(&mut ctx, &canvas, &TextureSettings::new()).unwrap();
@@ -54,10 +54,12 @@ fn main() {
 
         if let Some(btn) = e.press_args() {
             match btn {
+                /*
                 Button::Mouse(MouseButton::Left) => {
                     let (_x, _y) = (cursor[0] / CELL_PIXEL_SIDE, cursor[1] / CELL_PIXEL_SIDE);
                     //world = world.toggle(x as usize, y as usize);
                 }
+                */
                 Button::Keyboard(Key::Space) => running = !running,
                 Button::Keyboard(Key::C) => world = world.clear(),
                 Button::Keyboard(Key::R) => world = world.random(),
@@ -67,39 +69,36 @@ fn main() {
         }
 
         if e.render_args().is_some() {
-            let _pixel_to_point = |sx: u32, sy: u32| -> (usize, usize) {
-                (
-                    ((sx / CELL_PIXEL_SIDE) as usize),
-                    (sy / CELL_PIXEL_SIDE) as usize,
-                )
-            };
-
-            let _now = Instant::now();
-            world.cells.iter().enumerate().for_each(|cell| {
-                let x = cell.0 % world.width;
-                let y = cell.0 / world.width;
-                let color = if cell.1.alive { [255; 4] } else { [128; 4] };
-
-                for j in 0..CELL_PIXEL_SIDE {
-                    let sy = y as u32 * CELL_PIXEL_SIDE + j;
-                    for i in 0..CELL_PIXEL_SIDE {
-                        let sx = x as u32 * CELL_PIXEL_SIDE + i;
-                        canvas.put_pixel(sx, sy, im::Rgba(color));
-                    }
-                }
-            });
+            let now = Instant::now();
 
             texture.update(&mut ctx, &canvas).unwrap();
             window.draw_2d(&e, |c, g, d| {
                 ctx.encoder.flush(d);
                 clear([0., 0., 0., 1.], g);
-                image(&texture, c.transform, g);
+                world.cells.iter().enumerate().for_each(|cell| {
+                    let x = cell.0 % world.width;
+                    let y = cell.0 / world.width;
+                    let sy = y as u32 * CELL_PIXEL_SIDE;
+                    let sx = x as u32 * CELL_PIXEL_SIDE;
+                    let color = if cell.1.alive { [1.0; 4] } else { [0.5; 4] };
+                    rectangle(
+                        color,
+                        [
+                            sx as f64,
+                            sy as f64,
+                            CELL_PIXEL_SIDE as f64,
+                            CELL_PIXEL_SIDE as f64,
+                        ],
+                        c.transform,
+                        g,
+                    );
+                });
             });
 
             write!(stdout, "{}", clear::All).unwrap();
             write!(stdout, "{}", cursor::Goto(1, 1)).unwrap();
             println!("{}", world);
-            println!("Render: {}ms", _now.elapsed().as_millis());
+            println!("Render: {}ms", now.elapsed().as_millis());
             println!("World Tick: {}ms", world.tick_time_ms);
         }
 
@@ -108,41 +107,3 @@ fn main() {
         }
     }
 }
-
-/*
-fn main() {
-    let mut world = world::World::new_random(5, 5);
-    loop {
-        print!("{}", world);
-        world.tick_mutable();
-
-    }
-
-    print!("{}", world);
-    print!("{}", world.tick());
-    print!("{}", world.tick().tick());
-    print!("{}", world.tick().tick().tick());
-    print!("--------------------------------");
-    print!("--------------------------------");
-    print!("--------------------------------");
-    print!("{}", world);
-    world.tick_mutable();
-    print!("{}", world);
-    world.tick_mutable();
-    print!("{}", world);
-    print!("{}", world.tick_mutable());
-    let mut window: PistonWindow =
-        WindowSettings::new("Hello Piston!", [640, 480])
-        .exit_on_esc(true).build().unwrap();
-
-    while let Some(event) = window.next() {
-        window.draw_2d(&event, |context, graphics, _device| {
-            clear([1.0; 4], graphics);
-            rectangle([1.0, 0.0, 0.0, 1.0], // red
-                      [0.0, 0.0, 100.0, 100.0],
-                      context.transform,
-                      graphics);
-        });
-    }
-}
-*/
