@@ -1,19 +1,19 @@
-use self::piston_window::*;
 use std::io::{self, Write};
 use std::time::Instant;
 use termion::{clear, cursor};
 
-extern crate image as im;
-extern crate piston_window;
+use sdl2::event::Event;
+use sdl2::keyboard::Keycode;
+use sdl2::pixels::Color;
+use sdl2::rect::Rect;
 
 use crate::world::World;
 pub mod cell;
 pub mod world;
 
-const UPS: u32 = 120;
 const CELL_PIXEL_SIDE: u32 = 5;
-const X_SIZE: u32 = CELL_PIXEL_SIDE * 1920;
-const Y_SIZE: u32 = CELL_PIXEL_SIDE * 1080;
+const X_SIZE: u32 = CELL_PIXEL_SIDE * 480;
+const Y_SIZE: u32 = CELL_PIXEL_SIDE * 200;
 
 fn main() {
     let stdout = io::stdout();
@@ -22,84 +22,78 @@ fn main() {
     let (cols, rows) = (X_SIZE / CELL_PIXEL_SIDE, Y_SIZE / CELL_PIXEL_SIDE);
     let mut world = World::new_random(cols as usize, rows as usize);
 
-    let mut window: PistonWindow = WindowSettings::new("Game of Life", [X_SIZE, Y_SIZE])
-        .resizable(false)
-        .exit_on_esc(true)
-        .graphics_api(OpenGL::V3_2)
-        .fullscreen(false)
+    let sdl_context = sdl2::init().unwrap();
+    let video_subsystem = sdl_context.video().unwrap();
+    let window = video_subsystem
+        .window("Game of Life", X_SIZE, Y_SIZE)
+        .position_centered()
+        .opengl()
         .build()
         .unwrap();
 
-    window.events = Events::new(EventSettings {
-        max_fps: 240,
-        ups: UPS as u64,
-        ups_reset: 2,
-        swap_buffers: true,
-        lazy: false,
-        bench_mode: false,
-    });
+    let mut canvas = window.into_canvas().build().unwrap();
 
-    let mut canvas = im::ImageBuffer::new(X_SIZE as u32, Y_SIZE as u32);
-    let mut ctx = window.create_texture_context();
-
-    let mut texture = Texture::from_image(&mut ctx, &canvas, &TextureSettings::new()).unwrap();
+    canvas.set_draw_color(Color::RGB(0, 0, 0));
+    canvas.clear();
+    canvas.present();
 
     let mut running = true;
-    let mut cursor = [0, 0];
-    while let Some(e) = window.next() {
-        e.mouse_cursor(|[x, y]| {
-            cursor = [x as u32, y as u32];
-            //println!("Cursor event: {:?}", cursor);
+    let mut event_pump = sdl_context.event_pump().unwrap();
+
+    'event_loop: loop {
+        let now = Instant::now();
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::Quit { .. }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Escape),
+                    ..
+                } => break 'event_loop,
+
+                Event::KeyDown {
+                    keycode: Some(keycode),
+                    ..
+                } => match keycode {
+                    Keycode::Space => running = !running,
+                    Keycode::C => world = world.clear(),
+                    Keycode::R => world = world.random(),
+                    Keycode::T => world = world.tick(),
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
+
+        world.cells.iter().enumerate().for_each(|(index, cell)| {
+            let x = index % world.width;
+            let y = index / world.width;
+            let px = x as u32 * CELL_PIXEL_SIDE;
+            let py = y as u32 * CELL_PIXEL_SIDE;
+            let color = if cell.alive {
+                Color::RGB(255, 255, 255)
+            } else {
+                Color::RGB(0, 0, 0)
+            };
+            canvas.set_draw_color(color);
+            canvas
+                .fill_rect(Rect::new(
+                    px as i32,
+                    py as i32,
+                    CELL_PIXEL_SIDE,
+                    CELL_PIXEL_SIDE,
+                ))
+                .unwrap();
         });
 
-        if let Some(btn) = e.press_args() {
-            match btn {
-                /*
-                Button::Mouse(MouseButton::Left) => {
-                    let (_x, _y) = (cursor[0] / CELL_PIXEL_SIDE, cursor[1] / CELL_PIXEL_SIDE);
-                    //world = world.toggle(x as usize, y as usize);
-                }
-                */
-                Button::Keyboard(Key::Space) => running = !running,
-                Button::Keyboard(Key::C) => world = world.clear(),
-                Button::Keyboard(Key::R) => world = world.random(),
-                Button::Keyboard(Key::T) => world = world.tick(),
-                _ => {}
-            };
-        }
+        canvas.present();
 
-        if e.render_args().is_some() {
-            let now = Instant::now();
+        write!(stdout, "{}", clear::All).unwrap();
+        write!(stdout, "{}", cursor::Goto(1, 1)).unwrap();
+        println!("{}", world);
+        println!("Render: {}ms", now.elapsed().as_millis());
+        println!("World Tick: {}ms", world.tick_time_ms);
 
-            world.cells.iter().enumerate().for_each(|cell| {
-                let x = cell.0 % world.width;
-                let y = cell.0 / world.width;
-                let color = if cell.1.alive { [255; 4] } else { [128; 4] };
-
-                for j in 0..CELL_PIXEL_SIDE {
-                    let sy = y as u32 * CELL_PIXEL_SIDE + j;
-                    for i in 0..CELL_PIXEL_SIDE {
-                        let sx = x as u32 * CELL_PIXEL_SIDE + i;
-                        canvas.put_pixel(sx, sy, im::Rgba(color));
-                    }
-                }
-            });
-
-            texture.update(&mut ctx, &canvas).unwrap();
-            window.draw_2d(&e, |c, g, d| {
-                ctx.encoder.flush(d);
-                clear([0., 0., 0., 1.], g);
-                image(&texture, c.transform, g);
-            });
-
-            write!(stdout, "{}", clear::All).unwrap();
-            write!(stdout, "{}", cursor::Goto(1, 1)).unwrap();
-            println!("{}", world);
-            println!("Render: {}ms", now.elapsed().as_millis());
-            println!("World Tick: {}ms", world.tick_time_ms);
-        }
-
-        if e.update_args().is_some() && running {
+        if running {
             world = world.tick();
         }
     }

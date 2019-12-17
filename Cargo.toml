@@ -8,8 +8,7 @@ edition = "2018"
 debug = true
 
 [dependencies]
-piston_window = "*"
 rand = "*"
-image = "*"
 rayon = "*"
 termion = "*"
+sdl2 = "*"
