@@ -5,6 +5,8 @@ rust:
 before_script:
   - rustup component add clippy
   - rustup component add rustfmt
+  - sudo apt-get update
+  - sudo apt-get -y install libsdl2-dev
 script:
   - cargo fmt --all -- --check
   # in order to also check tests and non-default crate features, use
